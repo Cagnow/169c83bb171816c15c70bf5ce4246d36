@@ -1,0 +1,94 @@
+***********************************************************************************************************
+***********************************************************************************************************
+* / __ \|  __ \__   __|  ____/ ____| |_   _| \ | |  __ \| |  | |/ ____|__   __|  __ \|_   _|  ____|/ ____|*
+*| |  | | |__) | | |  | |__ | |        | | |  \| | |  | | |  | | (___    | |  | |__) | | | | |__  | (___  *
+*| |  | |  ___/  | |  |  __|| |        | | | . ` | |  | | |  | |\___ \   | |  |  _  /  | | |  __|  \___ \ *
+*| |__| | |      | |  | |___| |____   _| |_| |\  | |__| | |__| |____) |  | |  | | \ \ _| |_| |____ ____) |*
+* \____/|_|      |_|  |______\_____| |_____|_| \_|_____/ \____/|_____/   |_|  |_|  \_\_____|______|_____/ *                                                                                                     
+***********************************************************************************************************
+***********************************************************************************************************
+****Les count_seconds servent a determiner le temps entre chaque procédures du programme****
+***********************************DEBUT INIT***********************************
+
+
+count_seconds(a)
+
+create_deep_ocr ([], [], DeepOcrHandle)
+set_suitable_device_in_ocr_handle (DeepOcrHandle)
+set_deep_ocr_param (DeepOcrHandle, 'detection_tiling', 'true')
+*On autorise la detection de caractres inclinés*
+set_deep_ocr_param (DeepOcrHandle, 'detection_min_link_score', 0.5)
+*Definition de l'ecart (lien) minimum pour detecter une chaine de caractères*
+set_deep_ocr_param (DeepOcrHandle, 'detection_min_character_score', 0.5)
+**
+set_deep_ocr_param (DeepOcrHandle, 'detection_min_word_area', 40)
+*Détermine la taille minimum de detection d'une chaine de caractères*
+set_deep_ocr_param (DeepOcrHandle, 'detection_image_dimensions', [1000, 1000, 3])
+*Définition des paramètres de l'image*
+set_deep_ocr_param (DeepOcrHandle, 'recognition_num_char_candidates', 2)
+*Définition du nombre de candidats max*
+
+***********************************FIN INIT************************************
+dev_update_off ()
+dev_close_window ()
+count_seconds(b)
+ImgName := 'Chemin Images'
+read_image (Image, ImgName)
+count_seconds(c)
+****On ouvre une fenêtre aux dimensions adaptées à l'image analysée****
+get_image_size (Image, Width, Height)
+dev_open_window (0, 0, Width/4, Height/4, 'black', WindowHandle)
+dev_display (Image)
+****On lance le process d'OCR****
+apply_deep_ocr (Image, DeepOcrHandle, 'auto', DeepOcrResult)
+****Création d'un rectangle rouge pour une zone de caractères reconnue****
+dev_display_deep_ocr_results (Image, WindowHandle, DeepOcrResult, 'box_color', 'red')
+****Récupération des caractères reconnus.Un rectangle rouge dans la fenêtre équivaut à un element dans l'uplet****
+get_dict_tuple(DeepOcrResult, 'words', TupleWordInfo)
+get_dict_tuple(TupleWordInfo, 'word', TupleWords)
+****Supression des élements de la liste TupleWords et TupleCandidates avec >? caratères, on récupère également les indices des clés restantes****
+get_dict_tuple(TupleWordInfo, 'char_candidates', TupleCandidates)
+get_dict_param(DeepOcrResult.words.char_candidates, 'keys', [], ListOfKeys)
+ TupleWordsFinal := TupleWords
+    for i := 0 to |TupleWords| - 1 by 1
+         tuple_strlen (TupleWords[i], LengthString)
+         if (LengthString < ?)
+             tuple_find (TupleWords, TupleWords[i], Indices)
+             tuple_remove (TupleWords, Indices, TupleWordsFinal)
+             tuple_select (ListOfKeys, i, KeyToRemove)
+             remove_dict_key (TupleCandidates, KeyToRemove)
+         endif
+    endfor
+count_seconds(d)
+****Extraction des coeffs de 'confidence' et des caractères dans un fichier CSV ****
+get_dict_param(TupleCandidates, 'keys', [], ListOfKeys2)
+tuple_select(ListOfKeys2, 0, i1)
+tuple_select(ListOfKeys2, 1, i2)
+get_dict_tuple(TupleCandidates, i1, TupleZone1)
+get_dict_tuple(TupleCandidates, i2, TupleZone2)
+ResultatZone := 'Chemin Résultats'
+open_file (ResultatZone, 'append', FileHandle)
+fwrite_string(FileHandle, ImgName)
+fwrite_string(FileHandle, '\n')
+for i := 0 to |TupleZone1| - 1 by 1
+   *get_dict_tuple(TupleZone1,'TupleZone1[i]',TZ1)
+    tuple_select (TupleZone1, i, TempR)
+    fwrite_string(FileHandle,TempR.candidate)
+    fwrite_string(FileHandle, ';')
+    fwrite_string(FileHandle, TempR.confidence)
+    fwrite_string(FileHandle, '\n')
+endfor
+for i := 0 to |TupleZone2| - 1 by 1
+   *get_dict_tuple(TupleZone1,'TupleZone1[i]',TZ1)
+    tuple_select (TupleZone2, i, TempS)
+    fwrite_string(FileHandle,TempS.candidate)
+    fwrite_string(FileHandle, ';')
+    fwrite_string(FileHandle, TempS.confidence)
+    fwrite_string(FileHandle, '\n')
+endfor
+
+fwrite_string(FileHandle, '\n')
+****Calcul du temps d'execution à chaque étape du programme****
+ab:= b-a
+bc:= c-b
+cd:= d-c 
