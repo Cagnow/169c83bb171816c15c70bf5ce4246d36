@@ -1,0 +1,39 @@
+V1
+-------------------------------
+-Liste des images sous un repertoire défini (La variable ImgName a été remplacée par la variable Path) 
+-Execution d'une boucle pour appliquer le process de DeepOCR pour chaque image listée dans le repertoire spécifié
+-Correction d'une erreur écriture des résultats dans le fichier CSV 
+-------------------------------
+V1.1
+-------------------------------
+-Restriction de l'alphabet interne de reconaissence aux caractères numériques et majuscules (?; à l'aide d'une boucle de comparaison) 
+-Ouverture systématique d'une fenêtre de résoltuion 900x900 (anciennement un rapport de proportionalité de 1/4 par rapport à la résolution de l'image traitée)
+-Ecriture du nom de l'image traitée sur la fenêtre afin d'en faciliter la traçabilité
+-Ecriture du temps d'application du DeepOCR sur la fenêtre
+-Correction de la section supprimant les chaines de caractères inférieures à 5 (ancien système inéfficace)
+-------------------------------
+V1.2
+-------------------------------
+-Modification de la procédure HALCON dev_display_deep_ocr_results() afin de ne plus afichier le texte reconnu ainsi qu'amincir les rectangles de la zone de detection par soucis d'ergonomie.
+-Ecriture sur la fenêtre de différentes données statistiques (Médiane, Moyenne, Valeure Min.) pour chaque zone de texte reconnue
+-Enregistrement d'une 'copie d'écran' de la fenêtre à chaque image traitée vers un repertoire défini 
+-Redimensionnement de la fenêtre (on passe de 900x900 à 1100x1100)
+-------------------------------
+V1.2.1
+-------------------------------
+-La deuxième colonne sera exclusivement réservée à la zone de texte contenant le numéro de série 
+-Filtrage des caractères '?' trouvés dans le numéro de série et remplacement par un '?'
+-Ajout de détails sur la fenêtre en fonction de l'exectution du programme (Messages Erreur lecture et Correction dans les cas indiqués)
+-------------------------------
+V1.2.2
+-------------------------------
+-L'image résultante de l'execution du DeepOCR est enregistrée en .tiff avec une compression JPEG 90
+-Le numéro de série corrigé si nécessaire est écrit dans les métadonnées de l'image enregistrée
+-Ajout de la possibilité d'executer un modèle de DeepOCR personnalisé
+-------------------------------
+V1.3
+-------------------------------
+-Supression du traitement des résultats de la zone de texte ?
+-L'alphabet de reconnaissence interne conservera toujours le caractère '?' pour des raisons de cohérence avec le DeepOCR sur un modèle prédéfini.
+-Conservation de la recherche et de remplacement du caractère '?' dans le numéro de série
+-------------------------------
