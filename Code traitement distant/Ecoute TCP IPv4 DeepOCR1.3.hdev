@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="22.11.1.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>***********************************DEBUT INIT***********************************</c>
+<l>dev_close_window ()</l>
+<c>****Si create_deep_ocr n'est pas commenté, alors on process le DeepOCR avec le modèle prédefini de HALCON</c>
+<l>create_deep_ocr ([],[] , DeepOcrHandle)</l>
+<c>****Si read_deep_ocr() n'est pas commenté alors, le process utilisera un modèle de DeepOCR personalisé. Il faut noter qu'il faudra donc spécifier un chemin d'accès à ce dit modèle personalisé.(.hdo)</c>
+<c>*read_deep_ocr()</c>
+<c>****Affectation du processeur de calcul au GPU(RTX 3070TI).Procédure locale****</c>
+<l>set_suitable_device_in_ocr_handle(DeepOcrHandle)</l>
+<c>****On crée un Tuple qui va mapper les caracteres de alphabet internal en fonction des caractères que l'on souhaite conserver****</c>
+<l>get_deep_ocr_param(DeepOcrHandle,'recognition_alphabet_internal', AlphabetTest)</l>
+<l>tuple_length (AlphabetTest, LengthAlphabet)</l>
+<l>for Index := 0 to (LengthAlphabet - 1) by 1</l>
+<l>    tuple_equal_elem(AlphabetTest[Index], AlphabetCaracters, Compar)</l>
+<l>    tuple_sum(Compar, ComparSum)</l>
+<l>    if (ComparSum == 1)</l>
+<l>         AlphabetMapping[Index] := Index</l>
+<l>    else </l>
+<l>        AlphabetMapping[Index] := 0</l>
+<l>    endif</l>
+<l>endfor</l>
+<l>set_deep_ocr_param(DeepOcrHandle,'recognition_alphabet_mapping',AlphabetMapping)</l>
+<c>****Chargement du Tuple crée précédemment qui mappe l'alphabet personnalisé****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_tiling', 'true')</l>
+<c>****On autorise la detection de caractres inclinés****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_min_link_score', 0.5)</l>
+<c>****Definition de l'ecart (lien) minimum pour detecter une chaine de caractères****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_min_character_score', 0.4)</l>
+<c>****Définition du coefficient de confiance minimum à obtenir pour valider un caractère****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_min_word_area', 100)</l>
+<c>****Détermine la taille minimum de detection d'une chaine de caractères****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'recognition_num_char_candidates', 1)</l>
+<c>****Définition du nombre de candidats max****</c>
+<l>set_deep_ocr_param(DeepOcrHandle,'recognition_batch_size',1)</l>
+<c>****Définition du nombre de copies de l'image a traiter en parallèle, car on lit deux chaînes de carcatères****</c>
+<c>***********************************FIN INIT************************************</c>
+<l>dev_open_window (0, 0, 1100,1100, 'black', WindowHandle)</l>
+<c></c>
+<c></c>
+<l>set_font(WindowHandle,'Arial-Bold-16')</l>
+<l>open_socket_accept (3000, 'protocol', 'HALCON4', AcceptingSocket)</l>
+<l>dev_error_var (Error, 1)</l>
+<l>dev_set_check ('~give_error')</l>
+<l>OpenStatus := 5</l>
+<l>while (OpenStatus != 2)</l>
+<l>    socket_accept_connect (AcceptingSocket, 'false', Socket)</l>
+<l>    OpenStatus := Error</l>
+<l>    wait_seconds (0.2)</l>
+<l>endwhile</l>
+<l>dev_set_check ('give_error')</l>
+<l>get_next_socket_data_type (Socket, DataType)</l>
+<l>while (true)</l>
+<l>    TupleEnvoi:=[]</l>
+<l>    while(|TupleEnvoi|!=3)</l>
+<l>       receive_tuple(Socket,TupleEnvoi)</l>
+<l>    endwhile</l>
+<l>receive_image (Image, Socket)</l>
+<l>        dev_display (Image)</l>
+<c>****On lance le process de DeepOCR****</c>
+<l>        apply_deep_ocr (Image, DeepOcrHandle, 'auto', DeepOcrResult)</l>
+<c>****Création d'un rectangle rouge pour une zone de caractères reconnue****</c>
+<l>         dev_display_deep_ocr_zones (Image, WindowHandle, DeepOcrResult, 'box_color', 'red')</l>
+<c>         ****Récupération des caractères reconnus.Un rectangle rouge dans la fenêtre équivaut à un element dans l'uplet****</c>
+<l>        get_dict_tuple(DeepOcrResult, 'words', TupleWordInfo)</l>
+<l>        get_dict_tuple(TupleWordInfo, 'word', TupleWords)</l>
+<c>****Supression des élements de la liste TupleWords et TupleCandidates avec &gt;? caratères, on récupère également les indices des clés restantes****</c>
+<l>        get_dict_tuple(TupleWordInfo, 'char_candidates', TupleCandidates)</l>
+<l>        get_dict_param(DeepOcrResult.words.char_candidates, 'keys', [], ListOfKeys)</l>
+<l>        DelIndex:=[]</l>
+<l>        for k := 0 to |TupleWords| - 1 by 1</l>
+<l>             tuple_strlen (TupleWords[k], LengthString)</l>
+<l>             if (LengthString &lt; ?)</l>
+<l>                 DelIndex:=[DelIndex,k]</l>
+<l>                 tuple_select (ListOfKeys, k, KeyToRemove)</l>
+<l>                 remove_dict_key (TupleCandidates, KeyToRemove)</l>
+<l>             endif</l>
+<l>        endfor</l>
+<l>        tuple_remove (TupleWords, DelIndex, TupleWordsFinal)</l>
+<l>        get_dict_param(TupleCandidates, 'keys', [], ListOfKeys2)</l>
+<c>        </c>
+<l>        if (|ListOfKeys2|==1)</l>
+<c>****Extraction des coeffs de 'confidence' et des caractères dans un fichier CSV ****</c>
+<l>    tuple_select(ListOfKeys2, 0, i1)</l>
+<l>    get_dict_tuple(TupleCandidates, i1, TupleZone1)</l>
+<c></c>
+<l>    StatsS:=[]</l>
+<l>    CharsS:=[]</l>
+<l>    for i := 0 to |TupleZone1| - 1 by 1        </l>
+<l>        tuple_select (TupleZone1, i, TempS)</l>
+<l>        for j:= 0 to |TempS.candidate| - 1 by 1           </l>
+<c>           </c>
+<l>            CharsS:=[CharsS,TempS.candidate[j]]</l>
+<l>        endfor</l>
+<l>        for j:= 0 to |TempS.confidence| - 1 by 1            </l>
+<c>            </c>
+<l>            StatsS:=[StatsS,TempS.confidence[j]]</l>
+<l>        endfor</l>
+<c>            </c>
+<l>    endfor</l>
+<c>    </c>
+<c>****Remplacement caractère '?' dans la zone de texte SN si necessaire****</c>
+<l> tuple_find (CharsS,['?'] , Indices_replace)</l>
+<c>    </c>
+<l>  if(Indices_replace[0]!=-1)</l>
+<c>        </c>
+<l>            tuple_replace (CharsS, Indices_replace, ['?'], SN)</l>
+<l>            tuple_join (SN, [''], SNFinal)</l>
+<l>            remplacement:=true</l>
+<l>    endif</l>
+<l>endif</l>
+<c></c>
+<c>****Affichage des valeures stats des taux de confiance Zone1****</c>
+<l>try</l>
+<l>tuple_mean (StatsS,Moyenne2)</l>
+<l>tuple_median(StatsS,Mediane2)</l>
+<l>tuple_min (StatsS,Min2)</l>
+<l>tuple_find(StatsS,Min2,indexMin2)</l>
+<l>set_tposition (WindowHandle, 400, 1)</l>
+<l>write_string (WindowHandle,'Zone: '+TupleWordsFinal[0]+'')</l>
+<l>set_tposition (WindowHandle, 500, 1)</l>
+<l>write_string (WindowHandle,'x̄: '+Moyenne2+'')</l>
+<l>set_tposition (WindowHandle, 600, 1)</l>
+<l>write_string (WindowHandle,'Me: '+Mediane2+'')</l>
+<l>set_tposition (WindowHandle, 700, 1)</l>
+<l>write_string (WindowHandle,'Valeur min: '+Min2+'')</l>
+<l>set_tposition (WindowHandle, 800, 1)</l>
+<l>write_string (WindowHandle,'Caractère min: '+CharsS[indexMin2]+'')</l>
+<l>if (remplacement=true)</l>
+<l>    set_tposition (WindowHandle, 900, 1)</l>
+<l>    write_string (WindowHandle,'Correction: '+SNFinal+'')</l>
+<l>else</l>
+<l>    SNFinal:=TupleWordsFinal[0]</l>
+<l>endif</l>
+<l>catch (Exception)</l>
+<c>  </c>
+<l>endtry</l>
+<c></c>
+<l>    dump_window_image(ImageResultat,WindowHandle)</l>
+<l>    send_tuple(Socket,[0,1])</l>
+<l>    send_image(ImageResultat,Socket)</l>
+<l>    dev_clear_window()</l>
+<c></c>
+<c></c>
+<l>endwhile</l>
+<c></c>
+<l>*close_socket (Socket)</l>
+<l>*close_socket (AcceptingSocket)</l>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="set_suitable_device_in_ocr_handle">
+<interface>
+<ic>
+<par name="DeepOcrHandle" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>* Determine deep learning device to work with (prefer GPU over CPU).</c>
+<l>query_available_dl_devices (['runtime'], ['gpu'], DLDeviceHandles)</l>
+<l>if (|DLDeviceHandles| == 0)</l>
+<l>    throw ('No supported device found to continue this example.')</l>
+<l>endif</l>
+<c>* Set recognition_image_width larger for the example to work without memory problems.</c>
+<l>try</l>
+<l>    get_deep_ocr_param (DeepOcrHandle, 'recognition_image_width', RecognitionImageWidthDefault)</l>
+<l>    set_deep_ocr_param (DeepOcrHandle, 'recognition_image_width', 1000)</l>
+<l>catch (Exception)</l>
+<l>endtry</l>
+<l>set_deep_ocr_param (DeepOcrHandle, 'device', DLDeviceHandles)</l>
+<l>break</l>
+<c></c>
+<c></c>
+</body>
+<docu id="set_suitable_device_in_ocr_handle">
+<parameters>
+<parameter id="DeepOcrHandle">
+<default_type>integer</default_type>
+<mixed_type>false</mixed_type>
+<sem_type>deep_ocr</sem_type>
+<type_list>
+<item>integer</item>
+</type_list>
+</parameter>
+</parameters>
+</docu>
+</procedure>
+</hdevelop>
