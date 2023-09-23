@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="22.11.1.0">
+<procedure name="main">
+<interface/>
+<body>
+<l>InterfaceName := 'USB3Vision'</l>
+<l>check_device (InterfaceName, Device, GenericParam)</l>
+<l>open_framegrabber (InterfaceName, 0, 0, 0, 0, 0, 0, 'default', -1, 'default', GenericParam, 'false', 'default', Device, 0, -1, AcqHandle)</l>
+<l>get_framegrabber_param (AcqHandle, 'Width', Width)</l>
+<l>get_framegrabber_param (AcqHandle, 'Height', Height)</l>
+<l>*info_framegrabber(AcqHandle,'parameters',test,tests)</l>
+<l>get_framegrabber_param(AcqHandle,'available_param_names',params)</l>
+<l>set_framegrabber_param(AcqHandle,'ExposureTime',1500)</l>
+<l>*set_framegrabber_param(AcqHandle,'AcquisitionFrameRate','2')</l>
+<l>set_framegrabber_param (AcqHandle, 'LineSelector', 'Line3')</l>
+<l>set_framegrabber_param (AcqHandle, 'LineMode', 'Output')</l>
+<c></c>
+<c></c>
+<l>dev_close_window ()</l>
+<l>dev_open_window (0, 0, 1100, 1100, 'black', WindowHandle)</l>
+<l>open_socket_connect ('192.168.1.189', 3000, [], [], Socket)</l>
+<l>while (true)</l>
+<l>FileExists:=0</l>
+<l>while(FileExists!=1)</l>
+<l>file_exists ('Chemin Partagé', FileExists)</l>
+<l>wait_seconds(0.25)</l>
+<l>endwhile</l>
+<l>delete_file('Chemin Partagé')</l>
+<l>send_tuple(Socket, [0,1,2])</l>
+<l>set_framegrabber_param (AcqHandle, 'LineInverter', 1)</l>
+<l>wait_seconds(0.1)</l>
+<l>grab_image(Image, AcqHandle)</l>
+<l>set_framegrabber_param (AcqHandle, 'LineInverter', 0)</l>
+<l>send_image (Image, Socket)</l>
+<c></c>
+<l>wait_seconds(0.05)</l>
+<l>TupleCheck:=[]</l>
+<l>while (|TupleCheck|!=2)</l>
+<l>receive_tuple(Socket,TupleCheck)</l>
+<l>wait_seconds(0.2)</l>
+<l>endwhile</l>
+<l>receive_image(ImageResultat,Socket)</l>
+<l>dev_clear_window()</l>
+<l>dev_display(ImageResultat)</l>
+<c></c>
+<l>endwhile</l>
+<l>*close_socket (Socket)</l>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="check_device">
+<interface>
+<ic>
+<par name="InterfaceName" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Device" base_type="ctrl" dimension="0"/>
+<par name="GenericParam" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* List all devices for specific image acquisition interface</c>
+<l>info_framegrabber (InterfaceName, 'info_boards', BoardInfo, BoardInfoValues)</l>
+<c></c>
+<c>* Now check the first device which is found, assuming this is the</c>
+<c>* one which you want to use.</c>
+<l>if (|BoardInfoValues|)</l>
+<l>    Device := BoardInfoValues[0]</l>
+<l>else</l>
+<l>    Device := []</l>
+<l>    GenericParam := -1</l>
+<l>    return ()</l>
+<l>endif</l>
+<c></c>
+<c>* Check if the device is not correctly configured for use</c>
+<c>* with this interface and extract the necessary action from</c>
+<c>* the 'suggestion' tag.</c>
+<l>ParamTag := 'suggestion:'</l>
+<l>SubStrings := split(Device,' | ')</l>
+<l>Pos := strrstr(SubStrings,ParamTag)</l>
+<l>Index := find(Pos,0)</l>
+<l>if (Index != -1)</l>
+<c>    * Need to do something special while opening the device</c>
+<l>    TagsSplitted := split(SubStrings[Index],':')</l>
+<l>    GenericParam := TagsSplitted[1]</l>
+<l>else</l>
+<c>    * Nothing special to do</c>
+<l>    GenericParam := -1</l>
+<l>endif</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="check_device">
+<parameters>
+<parameter id="Device"/>
+<parameter id="GenericParam"/>
+<parameter id="InterfaceName"/>
+</parameters>
+</docu>
+</procedure>
+</hdevelop>
