@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="22.11.1.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>***********************************************************************************************************</c>
+<c>***********************************************************************************************************</c>
+<c>* / __ \|  __ \__   __|  ____/ ____| |_   _| \ | |  __ \| |  | |/ ____|__   __|  __ \|_   _|  ____|/ ____|*</c>
+<c>*| |  | | |__) | | |  | |__ | |        | | |  \| | |  | | |  | | (___    | |  | |__) | | | | |__  | (___  *</c>
+<c>*| |  | |  ___/  | |  |  __|| |        | | | . ` | |  | | |  | |\___ \   | |  |  _  /  | | |  __|  \___ \ *</c>
+<c>*| |__| | |      | |  | |___| |____   _| |_| |\  | |__| | |__| |____) |  | |  | | \ \ _| |_| |____ ____) |*</c>
+<c>* \____/|_|      |_|  |______\_____| |_____|_| \_|_____/ \____/|_____/   |_|  |_|  \_\_____|______|_____/ *                                                                                                     </c>
+<c>***********************************************************************************************************</c>
+<c>***********************************************************************************************************</c>
+<c>***********************************DEBUT INIT***********************************</c>
+<c>****Si create_deep_ocr n'est pas commenté, alors on process le DeepOCR avec le modèle prédefini de HALCON</c>
+<l>create_deep_ocr ([],[] , DeepOcrHandle)</l>
+<c>****Si read_deep_ocr() n'est pas commenté alors, le process utilisera un modèle de DeepOCR personalisé. Il faut noter qu'il faudra donc spécifier un chemin d'accès à ce dit modèle personalisé.(.hdo)</c>
+<c>*read_deep_ocr()</c>
+<c>****Affectation du processeur de calcul au GPU(RTX 3070TI).Procédure locale****</c>
+<l>set_suitable_device_in_ocr_handle(DeepOcrHandle)</l>
+<c>****On crée un Tuple qui va mapper les caracteres de alphabet internal en fonction des caractères que l'on souhaite conserver****</c>
+<l>get_deep_ocr_param(DeepOcrHandle,'recognition_alphabet_internal', AlphabetTest)</l>
+<l>tuple_length (AlphabetTest, LengthAlphabet)</l>
+<l>for Index := 0 to (LengthAlphabet - 1) by 1</l>
+<l>    tuple_equal_elem(AlphabetTest[Index], AlphabetCaracters, Compar)</l>
+<l>    tuple_sum(Compar, ComparSum)</l>
+<l>    if (ComparSum == 1)</l>
+<l>         AlphabetMapping[Index] := Index</l>
+<l>    else </l>
+<l>        AlphabetMapping[Index] := 0</l>
+<l>    endif</l>
+<l>endfor</l>
+<l>set_deep_ocr_param(DeepOcrHandle,'recognition_alphabet_mapping',AlphabetMapping)</l>
+<c>****Chargement du Tuple crée précédemment qui mappe l'alphabet personnalisé****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_tiling', 'true')</l>
+<c>****On autorise la detection de caractres inclinés****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_min_link_score', 0.5)</l>
+<c>****Definition de l'ecart (lien) minimum pour detecter une chaine de caractères****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_min_character_score', 0.4)</l>
+<c>****Définition du coefficient de confiance minimum à obtenir pour valider un caractère****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'detection_min_word_area', 100)</l>
+<c>****Détermine la taille minimum de detection d'une chaine de caractères****</c>
+<l>set_deep_ocr_param (DeepOcrHandle, 'recognition_num_char_candidates', 1)</l>
+<c>****Définition du nombre de candidats max****</c>
+<l>set_deep_ocr_param(DeepOcrHandle,'recognition_batch_size',1)</l>
+<c>****Définition du nombre de copies de l'image a traiter en parallèle, car on lit deux chaînes de carcatères****</c>
+<c>***********************************FIN INIT************************************</c>
+<c>****On liste l'ensemble des images dans le repertoire défini****</c>
+<l>Path := 'Chemin Images'</l>
+<l>list_image_files(Path, 'default', [], ListeImages)</l>
+<l>tuple_length (ListeImages, Length)</l>
+<l>dev_update_off ()</l>
+<l>dev_close_window ()</l>
+<c>****On détermine les paramètres de la fenêtre****</c>
+<l>dev_open_window (0, 0, 1100,1100, 'black', WindowHandle)</l>
+<l>set_font(WindowHandle,'Arial-Bold-16')</l>
+<l>for Index := 0 to (Length - 1) by 1</l>
+<l>    SNFinal:=[]</l>
+<l>    remplacement:=false</l>
+<l>        c:=0</l>
+<l>        read_image (Image, ListeImages[Index])</l>
+<l>        count_seconds(c)</l>
+<c>****On ouvre une fenêtre aux dimensions adaptées à l'image analysée**** </c>
+<l>        dev_display (Image)</l>
+<c>****On lance le process de DeepOCR****</c>
+<l>        apply_deep_ocr (Image, DeepOcrHandle, 'auto', DeepOcrResult)</l>
+<c>****Création d'un rectangle rouge pour une zone de caractères reconnue****</c>
+<l>         dev_display_deep_ocr_zones (Image, WindowHandle, DeepOcrResult, 'box_color', 'red')</l>
+<c>****Procédure locale****</c>
+<c>      </c>
+<c>****Ecriture du fichier actuellement affiché****</c>
+<l>         set_tposition (WindowHandle, 100, 1)</l>
+<l>         write_string (WindowHandle,ListeImages[Index])</l>
+<c>****Récupération des caractères reconnus.Un rectangle rouge dans la fenêtre équivaut à un element dans l'uplet****</c>
+<l>        get_dict_tuple(DeepOcrResult, 'words', TupleWordInfo)</l>
+<l>        get_dict_tuple(TupleWordInfo, 'word', TupleWords)</l>
+<c>****Supression des élements de la liste TupleWords et TupleCandidates avec &gt;? caratères, on récupère également les indices des clés restantes****</c>
+<l>        get_dict_tuple(TupleWordInfo, 'char_candidates', TupleCandidates)</l>
+<l>        get_dict_param(DeepOcrResult.words.char_candidates, 'keys', [], ListOfKeys)</l>
+<l>        DelIndex:=[]</l>
+<l>        for k := 0 to |TupleWords| - 1 by 1</l>
+<l>             tuple_strlen (TupleWords[k], LengthString)</l>
+<l>             if (LengthString &lt; ?)</l>
+<l>                 DelIndex:=[DelIndex,k]</l>
+<l>                 tuple_select (ListOfKeys, k, KeyToRemove)</l>
+<l>                 remove_dict_key (TupleCandidates, KeyToRemove)</l>
+<l>             endif</l>
+<l>        endfor</l>
+<l>        tuple_remove (TupleWords, DelIndex, TupleWordsFinal)</l>
+<l>        count_seconds(d)</l>
+<l>        cd:= d-c </l>
+<l>        set_tposition (WindowHandle, 300, 1)</l>
+<l>        write_string (WindowHandle,'Lu en '+cd+' secondes')</l>
+<l>        get_dict_param(TupleCandidates, 'keys', [], ListOfKeys2)</l>
+<c>****Process des résultats si et seulement si Le programme reconnait le numéro de série****</c>
+<l>if (|ListOfKeys2|==1)</l>
+<c>****Extraction des coeffs de 'confidence' et des caractères dans un fichier CSV ****</c>
+<l>    tuple_select(ListOfKeys2, 0, i1)</l>
+<l>    get_dict_tuple(TupleCandidates, i1, TupleZone1)</l>
+<c>    </c>
+<l>    Resultats := 'Chemin Resultat'</l>
+<l>    open_file (Resultats, 'append', FileHandle)</l>
+<l>    fwrite_string(FileHandle,ListeImages[Index])</l>
+<l>    fwrite_string(FileHandle, '\n')   </l>
+<l>    StatsS:=[]</l>
+<l>    CharsS:=[]</l>
+<l>    for i := 0 to |TupleZone1| - 1 by 1        </l>
+<l>        tuple_select (TupleZone1, i, TempS)</l>
+<l>        for j:= 0 to |TempS.candidate| - 1 by 1           </l>
+<l>            fwrite_string(FileHandle, TempS.candidate[j])</l>
+<l>            fwrite_string(FileHandle, ';')</l>
+<l>            CharsS:=[CharsS,TempS.candidate[j]]</l>
+<l>        endfor</l>
+<l>        for j:= 0 to |TempS.confidence| - 1 by 1            </l>
+<l>            fwrite_string(FileHandle, TempS.confidence[j])</l>
+<l>            fwrite_string(FileHandle, ';')</l>
+<l>            StatsS:=[StatsS,TempS.confidence[j]]</l>
+<l>        endfor</l>
+<l>        fwrite_string(FileHandle, '\n')    </l>
+<l>    endfor</l>
+<l>    fwrite_string(FileHandle, '\n')</l>
+<c>    </c>
+<c>****Remplacement caractère '?' dans la zone de texte SN si necessaire****</c>
+<l> tuple_find (CharsS,['?'] , Indices_replace)</l>
+<c>    </c>
+<l>  if(Indices_replace[0]!=-1)</l>
+<c>        </c>
+<l>            tuple_replace (CharsS, Indices_replace, ['?'], SN)</l>
+<l>            tuple_join (SN, [''], SNFinal)</l>
+<l>            remplacement:=true</l>
+<l>    endif</l>
+<l>endif</l>
+<c></c>
+<c>****Affichage des valeures stats des taux de confiance Zone1****</c>
+<l>try</l>
+<l>tuple_mean (StatsS,Moyenne2)</l>
+<l>tuple_median(StatsS,Mediane2)</l>
+<l>tuple_min (StatsS,Min2)</l>
+<l>tuple_find(StatsS,Min2,indexMin2)</l>
+<l>set_tposition (WindowHandle, 400, 1)</l>
+<l>write_string (WindowHandle,'Zone: '+TupleWordsFinal[0]+'')</l>
+<l>set_tposition (WindowHandle, 500, 1)</l>
+<l>write_string (WindowHandle,'x̄: '+Moyenne2+'')</l>
+<l>set_tposition (WindowHandle, 600, 1)</l>
+<l>write_string (WindowHandle,'Me: '+Mediane2+'')</l>
+<l>set_tposition (WindowHandle, 700, 1)</l>
+<l>write_string (WindowHandle,'Valeur min: '+Min2+'')</l>
+<l>set_tposition (WindowHandle, 800, 1)</l>
+<l>write_string (WindowHandle,'Caractère min: '+CharsS[indexMin2]+'')</l>
+<l>if (remplacement=true)</l>
+<l>    set_tposition (WindowHandle, 900, 1)</l>
+<l>    write_string (WindowHandle,'Correction: '+SNFinal+'')</l>
+<l>else</l>
+<l>    SNFinal:=TupleWordsFinal[0]</l>
+<l>endif</l>
+<l>catch (Exception)</l>
+<l>   set_tposition (WindowHandle, 400, 1) </l>
+<l>   write_string (WindowHandle,'Erreur lecture')</l>
+<l>endtry</l>
+<c></c>
+<c></c>
+<l>dump_window_image(ImageResultat,WindowHandle)</l>
+<l>write_image(ImageResultat,'tiff jpeg 90',0,'Chemin Resultats'+Index+'')</l>
+<l>if (strlen(SNFinal) = 8) </l>
+<l>write_image_metadata('tiff','tiff_image_description',SNFinal,'Chemin Resultats'+Index+'')</l>
+<l>else</l>
+<l>write_image_metadata('tiff','tiff_image_description','ERREUR LECTURE','Chemin Resultats'+Index+'')</l>
+<l>endif</l>
+<l>*stop()</l>
+<l>dev_clear_window()</l>
+<l>endfor</l>
+<l>dev_close_window()</l>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="create_reference_image">
+<interface>
+<oo>
+<par name="ReducedReferenceImage" base_type="iconic" dimension="0"/>
+</oo>
+</interface>
+<body>
+<l>Row1 := 20</l>
+<l>Row2 := 64</l>
+<l>Column1 := 20</l>
+<l>Column2 := 106</l>
+<l>Column11 := 38</l>
+<l>Column12 := 88</l>
+<l>gen_contour_polygon_rounded_xld (TemplateShape, [Row1,Row1,Row2,Row2,Row1], [Column1,Column2,Column2,Column1,Column1], [9, 9, 9, 9, 9], 1)</l>
+<l>gen_contour_polygon_rounded_xld (TemplateLeft, [Row1,Row1,Row2,Row2,Row1], [Column1,Column11,Column11,Column1,Column1], [9, 7, 7, 9, 9], 1)</l>
+<l>gen_contour_polygon_rounded_xld (TemplateRight, [Row1,Row1,Row2,Row2,Row1], [Column12,Column2,Column2,Column12,Column12], [7, 9, 9, 7, 7], 1)</l>
+<l>gen_image_const (BlacKBacKground, 'byte', Column2 + 20, Row2 + 20)</l>
+<l>paint_xld (TemplateShape, BlacKBacKground, ReferenceImage1, 90)</l>
+<l>paint_xld (TemplateLeft, ReferenceImage1, ReferenceImageTmp, 150)</l>
+<l>paint_xld (TemplateRight, ReferenceImageTmp, ReferenceImage, 150)</l>
+<l>concat_obj (TemplateShape, TemplateLeft, Tmp)</l>
+<l>concat_obj (Tmp, TemplateRight, DispTemplate)</l>
+<l>gen_rectangle1 (TemplateROI, Row1 - 10, Column1 - 10, Row2 + 10, Column2 + 10)</l>
+<l>reduce_domain (ReferenceImage, TemplateROI, ReducedReferenceImage)</l>
+<l>* write_image (ReducedReferenceImage, 'png best', 0, 'template')</l>
+<l>return ()</l>
+</body>
+<docu id="create_reference_image">
+<parameters>
+<parameter id="ReducedReferenceImage"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="preprocessingImage">
+<interface>
+<io>
+<par name="image" base_type="iconic" dimension="0"/>
+</io>
+<oo>
+<par name="imageOutput" base_type="iconic" dimension="0"/>
+</oo>
+<ic>
+<par name="thresholdLow" base_type="ctrl" dimension="0"/>
+<par name="thresholdHigh" base_type="ctrl" dimension="0"/>
+<par name="RegionOpeningKernel" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c></c>
+<l>threshold (image, Region, 100, 255)</l>
+<l>opening_circle (Region, RegionOpening, 5.0)</l>
+<l>smallest_circle (RegionOpening, Row, Column, Radius)</l>
+<l>gen_circle (Circle, Row, Column, Radius)</l>
+<l>dev_set_color ('red')</l>
+<l>gen_circle (Circle1, Row, Column, Radius-(Radius*0.30))</l>
+<l>difference (Circle, Circle1, RegionDifference)</l>
+<l>reduce_domain (image, RegionDifference, ImageReduced)</l>
+<c></c>
+<c>* threshold dynmaique</c>
+<l>mean_image (ImageReduced, ImageMean, 20, 20)</l>
+<l>dyn_threshold (ImageReduced, ImageMean, RegionDynThresh, 5, 'not_equal')</l>
+<l>illuminate (ImageReduced, imageOutput, 70, 70, 0.5)</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="preprocessingImage">
+<parameters>
+<parameter id="RegionOpeningKernel"/>
+<parameter id="image"/>
+<parameter id="imageOutput"/>
+<parameter id="thresholdHigh"/>
+<parameter id="thresholdLow"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="set_suitable_device_in_ocr_handle">
+<interface>
+<ic>
+<par name="DeepOcrHandle" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>* Determine deep learning device to work with (prefer GPU over CPU).</c>
+<l>query_available_dl_devices (['runtime'], ['gpu'], DLDeviceHandles)</l>
+<l>if (|DLDeviceHandles| == 0)</l>
+<l>    throw ('No supported device found to continue this example.')</l>
+<l>endif</l>
+<c>* Set recognition_image_width larger for the example to work without memory problems.</c>
+<l>try</l>
+<l>    get_deep_ocr_param (DeepOcrHandle, 'recognition_image_width', RecognitionImageWidthDefault)</l>
+<l>    set_deep_ocr_param (DeepOcrHandle, 'recognition_image_width', 1000)</l>
+<l>catch (Exception)</l>
+<l>endtry</l>
+<l>set_deep_ocr_param (DeepOcrHandle, 'device', DLDeviceHandles)</l>
+<l>break</l>
+<c></c>
+<c></c>
+</body>
+<docu id="set_suitable_device_in_ocr_handle">
+<parameters>
+<parameter id="DeepOcrHandle">
+<default_type>integer</default_type>
+<mixed_type>false</mixed_type>
+<sem_type>deep_ocr</sem_type>
+<type_list>
+<item>integer</item>
+</type_list>
+</parameter>
+</parameters>
+</docu>
+</procedure>
+<procedure name="test_ocr_1">
+<interface/>
+<body>
+<c as_id="ocr" as_name="OCR 01" as_grp="[1,1]" as_ord="1">* OCR 01: Code generated by OCR 01</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[2,1]" as_ord="1">* OCR 01: </c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[2,1]" as_ord="2">* OCR 01: Prepare text model</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[2,1]" as_ord="3">* OCR 01: </c>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,1]" as_ord="4">create_text_model_reader ('manual', [], TextModel)</l>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,2]" as_ord="1">set_text_model_param (TextModel, 'manual_stroke_width', 5)</l>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,2]" as_ord="2">set_text_model_param (TextModel, 'manual_fragment_size_min', 5)</l>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,2]" as_ord="3">set_text_model_param (TextModel, 'manual_eliminate_border_blobs', 'true')</l>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,2]" as_ord="4">set_text_model_param (TextModel, 'manual_base_line_tolerance', 0.2)</l>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,2]" as_ord="5">set_text_model_param (TextModel, 'manual_max_line_num', 2)</l>
+<c as_id="ocr" as_name="OCR 01" as_grp="[2,3]" as_ord="1">* OCR 01: </c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[2,3]" as_ord="2">* OCR 01: Load classifier</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[2,3]" as_ord="3">* OCR 01: </c>
+<l as_id="ocr" as_name="OCR 01" as_grp="[2,3]" as_ord="4">read_ocr_class_mlp ('Industrial_NoRej.omc', DeepOcrHandle)</l>
+<c as_id="ocr" as_name="OCR 01" as_grp="[3,1]" as_ord="1">* OCR 01: ***************************************************************</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[3,1]" as_ord="2">* OCR 01: * The code which follows is to be executed once / image       *</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[3,1]" as_ord="3">* OCR 01: ***************************************************************</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[3,1]" as_ord="4">* OCR 01: </c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[3,1]" as_ord="5">* OCR 01: Load image</c>
+<l as_id="ocr" as_name="OCR 01" as_grp="[3,1]" as_ord="6">read_image (Image, '')</l>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,1]" as_ord="1">* OCR 01: </c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,1]" as_ord="2">* OCR 01: Perform actual processing (once per ROI)</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,3]" as_ord="1">* OCR 01: Generate regions of interest</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,3]" as_ord="2">* OCR 01: </c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,3]" as_ord="3">* OCR 01: Extract symbol regions (segmentation step)</c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,3]" as_ord="4">* OCR 01: Only consider first channel for color images</c>
+<l as_id="ocr" as_name="OCR 01" as_grp="[4,3]" as_ord="5">access_channel (Image, TmpObj_Mono, 1)</l>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,4]" as_ord="1">* OCR 01: </c>
+<c as_id="ocr" as_name="OCR 01" as_grp="[4,4]" as_ord="2">* OCR 01: Read text (classification step)</c>
+</body>
+<docu id="test_ocr_1">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="test_write">
+<interface/>
+<body>
+<c></c>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="test_write">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>
